@@ -6,7 +6,7 @@ from app.core.config import settings
 from app.services.schema_service import schema_to_prompt
 
 redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-groq_client = Groq(api_key=settings.OPENAI_API_KEY)
+groq_client = Groq(api_key=settings.GROQ_API_KEY)
 
 READ_SYSTEM_PROMPT = """You are an expert SQL query generator. Given a database schema and a natural language question, generate a single, correct, read-only SQL SELECT query.
 
