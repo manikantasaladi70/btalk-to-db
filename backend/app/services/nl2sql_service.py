@@ -13,6 +13,7 @@ READ_SYSTEM_PROMPT = """You are an expert SQL query generator. Given a database 
 Rules:
 - Output ONLY the SQL query, no explanation, no markdown, no backticks.
 - Never generate INSERT, UPDATE, DELETE, DROP, CREATE, or any destructive statement.
+- ALWAYS use single quotes for string values, never double quotes.
 - Use table aliases for readability when joining multiple tables.
 - Limit results to 500 rows unless the user specifies otherwise.
 - If the question is ambiguous, make the most reasonable interpretation.
@@ -53,7 +54,8 @@ def classify_sql(sql: str) -> str:
 def _is_safe_sql(sql: str, allow_writes: bool) -> tuple[bool, str | None]:
     cleaned = sql.strip().upper()
 
-    if any(kw in cleaned for kw in BLOCKED_KEYWORDS):
+    # Use word boundary to avoid false positives like "created_at" triggering "CREATE"
+    if any(re.search(rf'\b{kw}\b', cleaned) for kw in BLOCKED_KEYWORDS):
         return False, "Generated SQL contains a structural operation (DROP/CREATE/ALTER/etc) and was blocked."
 
     qtype = classify_sql(sql)
@@ -110,7 +112,7 @@ async def generate_sql(
     if not is_safe:
         raise ValueError(reason)
 
-    # Only cache read queries — write queries should always be freshly evaluated
+    # Only cache read queries
     if classify_sql(sql) == "SELECT":
         redis_client.setex(cache_key, settings.QUERY_CACHE_TTL, sql)
 
