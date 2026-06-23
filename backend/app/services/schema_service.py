@@ -3,9 +3,35 @@ from datetime import datetime
 from typing import Any
 
 
+def _make_sync_url(connection_string: str) -> str:
+    """Convert any connection string to a sync psycopg2 URL with SSL."""
+    sync_url = (
+        connection_string
+        .replace("+asyncpg", "")
+        .replace("+aiosqlite", "")
+    )
+    # Force SSL and IPv4 for Render compatibility
+    if "?" not in sync_url:
+        sync_url += "?sslmode=require"
+    elif "sslmode" not in sync_url:
+        sync_url += "&sslmode=require"
+    return sync_url
+
+
+def _make_engine(connection_string: str):
+    sync_url = _make_sync_url(connection_string)
+    return create_engine(
+        sync_url,
+        connect_args={
+            "connect_timeout": 10,
+            "sslmode": "require",
+        },
+        pool_pre_ping=True,
+    )
+
+
 def get_schema(connection_string: str) -> dict[str, Any]:
-    sync_url = connection_string.replace("+asyncpg", "").replace("+aiosqlite", "")
-    engine = create_engine(sync_url, connect_args={"connect_timeout": 10})
+    engine = _make_engine(connection_string)
     inspector = inspect(engine)
     schema: dict[str, Any] = {"tables": {}}
 
@@ -52,14 +78,7 @@ def execute_query(connection_string: str, sql: str) -> dict[str, Any]:
     """Run a SQL statement. SELECTs return rows; writes return affected row count."""
     from app.services.nl2sql_service import classify_sql
 
-    sync_url = connection_string.replace("+asyncpg", "").replace("+aiosqlite", "")
-    # statement_timeout: 15s hard limit per query
-    engine = create_engine(
-        sync_url,
-        connect_args={"connect_timeout": 10},
-        execution_options={"timeout": 15},
-    )
-
+    engine = _make_engine(connection_string)
     qtype = classify_sql(sql)
     start = datetime.utcnow()
 
@@ -92,17 +111,11 @@ def execute_query(connection_string: str, sql: str) -> dict[str, Any]:
 
 
 def count_affected_rows(connection_string: str, sql: str) -> int:
-    """
-    Dry-run estimate of how many rows a write statement will affect.
-    Converts UPDATE/DELETE to a SELECT COUNT(*) with the same WHERE clause.
-    Returns -1 if estimation fails or is not applicable.
-    """
     import re
-    sync_url = connection_string.replace("+asyncpg", "").replace("+aiosqlite", "")
     sql_upper = sql.strip().upper()
 
     try:
-        engine = create_engine(sync_url, connect_args={"connect_timeout": 10})
+        engine = _make_engine(connection_string)
         count_sql = None
 
         if sql_upper.startswith("DELETE"):
