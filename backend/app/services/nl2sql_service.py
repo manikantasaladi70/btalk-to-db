@@ -23,11 +23,12 @@ READWRITE_SYSTEM_PROMPT = """You are an expert SQL generator. Given a database s
 Rules:
 - Output ONLY the SQL statement, no explanation, no markdown, no backticks.
 - Never generate DROP, CREATE, ALTER, TRUNCATE, GRANT, or REVOKE statements under any circumstances.
-- For UPDATE or DELETE statements, ALWAYS include a WHERE clause. Never generate an UPDATE or DELETE without a WHERE clause that targets specific rows, unless the user explicitly and unambiguously asks to affect all rows.
-- For INSERT statements, only set columns the user has given values for or that have sensible defaults; never guess primary keys.
+- ALWAYS use single quotes for string values, never double quotes. Example: WHERE email = 'user@example.com'
+- For UPDATE or DELETE statements, ALWAYS include a WHERE clause.
+- For INSERT statements, only set columns the user has given values for.
 - Use table aliases for readability when joining multiple tables.
 - For SELECT statements, limit results to 500 rows unless the user specifies otherwise.
-- If the question is ambiguous or could affect more rows than clearly intended, respond with: ERROR: <reason>
+- If the question is ambiguous, respond with: ERROR: <reason>
 - If the request cannot be answered from the schema, respond with: ERROR: <reason>"""
 
 WRITE_KEYWORDS = ("INSERT", "UPDATE", "DELETE")
